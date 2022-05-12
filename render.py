@@ -60,10 +60,13 @@ class Render():
     def render(self, bravura_path, save_svg = True):
         uni_dict = self.csv2dict()
         file = minidom.parse(bravura_path)
+
         glyphs = file.getElementsByTagName('glyph')
         glyph_names = [glyph.attributes["glyph-name"].value for glyph in glyphs]
         index_uni = glyph_names.index(uni_dict[self.class_name])
         base_path = glyphs[index_uni].attributes['d'].value
+        #TODO: Have new base_path for tie, beam, slur and tupletBracket
+
         path_alt = parse_path(base_path)
         bbox = path_alt.bbox()
         xml_str = self.create_svg(bbox, base_path)
