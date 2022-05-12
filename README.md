@@ -8,7 +8,7 @@
     For Windows, if the above installation command isn't enough, create an issue on this repo. I will append the Windows installation guidelines in this README
 2. Install svgpathtools
     ```bash
-    pip install cairosvg
+    pip install svgpathtools
     ```
  ## Running the Renderer
  
