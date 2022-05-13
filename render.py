@@ -1,5 +1,5 @@
 import csv
-import os
+from pathlib import Path
 from xml.dom import minidom
 
 import numpy as np
@@ -59,7 +59,7 @@ class Render():
         xml_str = root.toprettyxml(indent="\t")
         return xml_str
 
-    def render(self, bravura_path, save_svg=True):
+    def render(self, bravura_path, save_svg=True, save_png=True):
         uni_dict = self.csv2dict()
         file = minidom.parse(bravura_path)
 
@@ -73,22 +73,26 @@ class Render():
             base_path = "m 58.172768,0.3197629 c -8.621801,7.1639345 -49.2377949,7.1639345 -57.85316243,0 v 0 c 8.61536753,6.1963135 49.23136143,6.1963135 57.85316243,0 z"
         elif self.class_name == 'slur':
             base_path = "m 154,141.7 1.2,1.3 C 140,155 114.7,158 95.8,158 64.5,158 49.6,150.8 40,143.3 l 1.4,-1.9 c 6.7,7.3 33.4,11.7 55.3,11.7 25.2,0 41.9,-2.8 57.3,-11.3 z"
-        else:
-            base_path = glyphs[index_uni].attributes['d'].value
 
         path_alt = parse_path(base_path)
         bbox = path_alt.bbox()
         xml_str = self.create_svg(bbox, base_path)
 
-        if not os.path.isdir('png_files/'):
-            os.makedirs('png_files/')
-        png_path = "png_files/{0}.png".format(self.class_name)
-        png_data = svg2png(bytestring=xml_str.encode(), write_to=png_path, output_width=self.width,
-                           output_height=self.height)
+        png_data = None
+        if save_png:
+            out_folder = Path('png_files')
+            out_folder.mkdir(exist_ok=True)
+            png_path = out_folder / self.class_name
+            svg2png(bytestring=xml_str.encode(), write_to=str(png_path.with_suffix('.png')), output_width=self.width,
+                    output_height=self.height)
+        else:
+            png_data = svg2png(bytestring=xml_str.encode(), output_width=self.width, output_height=self.height)
 
         if save_svg:
-            if not os.path.isdir('svg_files/'):
-                os.makedirs('svg_files/')
-            save_path_file = "svg_files/{0}.svg".format(self.class_name)
-            with open(save_path_file, "w") as f:
+            out_folder = Path('svg_files')
+            out_folder.mkdir(exist_ok=True)
+            save_path_file = out_folder / self.class_name
+            with open(save_path_file.with_suffix('.svg'), "w") as f:
                 f.write(xml_str)
+
+        return png_data

@@ -4,6 +4,7 @@ from PIL import Image
 
 # https://www.geogebra.org/classic
 # ggbApplet.getXcoord('H').toFixed() + ", " + -ggbApplet.getYcoord('H').toFixed() + ", " + Math.min(ggbApplet.getValue('l1').toFixed(), ggbApplet.getValue('l2').toFixed()) + ", " + Math.max(ggbApplet.getValue('l1').toFixed(), ggbApplet.getValue('l2').toFixed()) + ", " + (ggbApplet.getValue('α')*180/Math.PI).toFixed()
+from render import Render
 
 SAMPLES = [
     ('data/ds2_dense/images/lg-2267728-aug-gutenberg1939--page-2.png', [
@@ -33,9 +34,16 @@ SAMPLES = [
 ]
 
 MASKS = {
-    6: Image.open('prototype/clefG.png'),
-    29: Image.open('prototype/noteheadHalfOnLine.png'),
-    123: Image.open('prototype/tie.png'),
+    6: Render(class_name='clefG', height=101, width=44, csv_path='name_uni.csv').render('Bravura.svg', save_svg=False,
+                                                                                        save_png=False),
+    29: Render(class_name='noteheadHalfOnLine', height=101, width=44, csv_path='name_uni.csv').render('Bravura.svg',
+                                                                                                      save_svg=False,
+                                                                                                      save_png=False),
+    64: Render(class_name='accidentalSharp', height=101, width=44, csv_path='name_uni.csv').render('Bravura.svg',
+                                                                                                   save_svg=False,
+                                                                                                   save_png=False),
+    123: Render(class_name='tie', height=101, width=44, csv_path='name_uni.csv').render('Bravura.svg', save_svg=False,
+                                                                                        save_png=False),
 }
 
 
