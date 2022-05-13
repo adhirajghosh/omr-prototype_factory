@@ -89,7 +89,3 @@ class Render():
             save_path_file = "svg_files/{0}.svg".format(self.class_name)
             with open(save_path_file, "w") as f:
                 f.write(xml_str)
-
-
-
-
