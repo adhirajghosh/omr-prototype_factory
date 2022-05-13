@@ -1,9 +1,11 @@
 import csv
-from xml.dom import minidom
 import os
-from svgpathtools import parse_path
+from xml.dom import minidom
+
 import numpy as np
 from cairosvg import svg2png
+from svgpathtools import parse_path
+
 
 class Render():
     def __init__(self, class_name, height, width, csv_path):
@@ -57,7 +59,7 @@ class Render():
         xml_str = root.toprettyxml(indent="\t")
         return xml_str
 
-    def render(self, bravura_path, save_svg = True):
+    def render(self, bravura_path, save_svg=True):
         uni_dict = self.csv2dict()
         file = minidom.parse(bravura_path)
 
@@ -81,7 +83,8 @@ class Render():
         if not os.path.isdir('png_files/'):
             os.makedirs('png_files/')
         png_path = "png_files/{0}.png".format(self.class_name)
-        png_data = svg2png(bytestring=xml_str.encode(), write_to=png_path, output_width=self.width, output_height=self.height)
+        png_data = svg2png(bytestring=xml_str.encode(), write_to=png_path, output_width=self.width,
+                           output_height=self.height)
 
         if save_svg:
             if not os.path.isdir('svg_files/'):
