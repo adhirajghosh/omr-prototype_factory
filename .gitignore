@@ -129,3 +129,5 @@ dmypy.json
 .pyr/e
 
 .idea/*
+svg_files/*
+png_files/*
