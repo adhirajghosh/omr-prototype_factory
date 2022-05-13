@@ -1,17 +1,13 @@
 # Music Note Rendering Tool for OMR Post-Processing
 
 ## Installation
-1.  Install cairosvg. This can be installed executing the following line on linux
-    ```bash
-    pip install cairosvg
-    ```
-    For Windows, if the above installation command isn't enough, create an issue on this repo. I will append the Windows installation guidelines in this README
-2. Install svgpathtools
-    ```bash
-    pip install svgpathtools
-    ```
- ## Running the Renderer
- 
+```bash
+pip install -r requirements.txt
+```
+For Windows, if the above installation command isn't enough, create an issue on this repo. I will append the Windows installation guidelines in this README
+
+## Running the Renderer
+
 Run the following script
 
 ```bash
