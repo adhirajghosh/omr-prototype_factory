@@ -4,11 +4,11 @@ from render import Render
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Render classwise png representations')
-    parser.add_argument('--class_name', help='Name of the DeepScore Class', default = 'clefG')
-    parser.add_argument('--csv_path', help='the path where name_uni.csv is stored', default='name_uni.csv')
-    parser.add_argument('--height', help='target height of final image', default=100)
-    parser.add_argument('--width', help='target height of final image', default=100)
-    parser.add_argument('--svg_path', help='the path where Bravura.svg is stored', default='Bravura.svg')
+    parser.add_argument('--class_name', help='Name of the DeepScore Class', type = str, default = 'clefG')
+    parser.add_argument('--csv_path', help='the path where name_uni.csv is stored', type = str, default='name_uni.csv')
+    parser.add_argument('--height', help='target height of final image', type = int, default=100)
+    parser.add_argument('--width', help='target height of final image', type = int, default=100)
+    parser.add_argument('--svg_path', help='the path where Bravura.svg is stored', type = str, default='Bravura.svg')
     args = parser.parse_args()
 
     return args
