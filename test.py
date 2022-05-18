@@ -1,6 +1,7 @@
 import math
+import warnings
 from io import BytesIO
-from typing import Tuple
+from typing import Tuple, List
 
 import numpy as np
 from PIL import Image as PImage
@@ -15,6 +16,8 @@ from optical_flow import optical_flow_merging
 # https://www.geogebra.org/classic
 # ggbApplet.getXcoord('H').toFixed() + ", " + -ggbApplet.getYcoord('H').toFixed() + ", " + Math.min(ggbApplet.getValue('l1').toFixed(), ggbApplet.getValue('l2').toFixed()) + ", " + Math.max(ggbApplet.getValue('l1').toFixed(), ggbApplet.getValue('l2').toFixed()) + ", " + (ggbApplet.getValue('α')*180/Math.PI).toFixed()
 from render import Render
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 SAMPLES = [
     ('images/lg-2267728-aug-gutenberg1939--page-2.png', [
@@ -51,7 +54,23 @@ def pad(img: Image, pad: int) -> Image:
     return result
 
 
-def get_glyph(cls: int, bbox: Tuple[int, int, int, int, float], padding: int = 50) -> Image:
+def cls_to_glyph(class_name: str, width: int, height: int, angle: float, padding: int) -> Image:
+    png_data = Render(
+        class_name=class_name, height=height, width=width, csv_path='name_uni.csv').render(
+        'Bravura.svg', save_svg=False, save_png=False)
+    with BytesIO(png_data) as bio:
+        img = PImage.open(bio)
+        img.load()
+        img = img.rotate(angle * 180.0 / math.pi, PImage.BILINEAR, expand=True, fillcolor=(0, 0, 0, 0))
+        img = img.transpose(PImage.FLIP_TOP_BOTTOM)
+        img = pad(img, padding)
+        glyph = PImage.new("RGB", img.size, (255, 255, 255))
+        glyph.paste(img, mask=img.split()[3])  # 3 is the alpha channel
+        glyph = invert(glyph)
+        return grayscale(glyph)
+
+
+def get_glyphs(cls: int, bbox: Tuple[int, int, int, int, float], padding: int = 50) -> List[Image]:
     _, _, w, h, a = bbox
     class_name = {
         6: 'clefG',
@@ -59,19 +78,10 @@ def get_glyph(cls: int, bbox: Tuple[int, int, int, int, float], padding: int = 5
         64: 'accidentalSharp',
         123: 'tie'
     }[cls]
-    png_data = Render(
-        class_name=class_name, height=h, width=w, csv_path='name_uni.csv').render(
-        'Bravura.svg', save_svg=False, save_png=False)
-    with BytesIO(png_data) as bio:
-        img = PImage.open(bio)
-        img.load()
-        img = img.rotate(a * 180.0 / math.pi, PImage.BILINEAR, expand=True, fillcolor=(0, 0, 0, 0))
-        img = img.transpose(PImage.FLIP_TOP_BOTTOM)
-        img = pad(img, padding)
-        glyph = PImage.new("RGB", img.size, (255, 255, 255))
-        glyph.paste(img, mask=img.split()[3])  # 3 is the alpha channel
-        glyph = invert(glyph)
-        return grayscale(glyph)
+    glyph = cls_to_glyph(class_name, w, h, a, padding)
+    if class_name == 'tie':
+        return [glyph, glyph.transpose(PImage.FLIP_TOP_BOTTOM)]
+    return [glyph]
 
 
 def extract_bbox_from(glyph: Image, proposed_bbox: Tuple[int, int, int, int, float]) -> Tuple[
@@ -135,10 +145,13 @@ if __name__ == '__main__':
     for image_fp, samples in SAMPLES:
         img = PImage.open(image_fp)
         for sample in samples:
-            glyph = get_glyph(sample['class'], sample['proposal'])
-            new_glyph = process(img, sample['proposal'], glyph)
-            derived_bbox = extract_bbox_from(glyph, sample['proposal'])
-            new_bbox = extract_bbox_from(new_glyph, sample['proposal'])
-            iou = calc_loss(sample['gt'], new_bbox)
-            base_iou = calc_loss(sample['gt'], derived_bbox)
-            print(f"IoU [{sample['class']}]: {iou:.3} (baseline: {base_iou:.3})")
+            scores = []
+            print(f"IoU [{sample['class']}]: ", end='')
+            for glyph in get_glyphs(sample['class'], sample['proposal']):
+                new_glyph = process(img, sample['proposal'], glyph)
+                derived_bbox = extract_bbox_from(glyph, sample['proposal'])
+                new_bbox = extract_bbox_from(new_glyph, sample['proposal'])
+                iou = calc_loss(sample['gt'], new_bbox)
+                base_iou = calc_loss(sample['gt'], derived_bbox)
+                print(f", {iou:.3} (baseline: {base_iou:.3})", end='')
+            print()
