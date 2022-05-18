@@ -70,7 +70,13 @@ class Render():
         if self.class_name == 'tupletBracket':
             self.class_name = 'beam'
         elif self.class_name == 'tie':
-            base_path = "m 58.172768,0.3197629 c -8.621801,7.1639345 -49.2377949,7.1639345 -57.85316243,0 v 0 c 8.61536753,6.1963135 49.23136143,6.1963135 57.85316243,0 z"
+            # example for 50x10
+            # m 0 0 q 25 10 50 10 t 50 -10 q -25 8 -50 8 T 0 0 z
+            base_path = f"m 0 0 " \
+                        f"q {self.width / 4.0} {self.height} {self.width / 2.0} {self.height} " \
+                        f"t {self.width / 2.0} -{self.height} " \
+                        f"q -{self.width / 4.0} {self.height - 2} -{self.width / 2.0} {self.height - 2} " \
+                        f"T 0 0 z"
             path_alt = parse_path(base_path)
             bbox = list(path_alt.bbox())
             bbox[3] = 6.0
