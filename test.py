@@ -1,12 +1,16 @@
 import math
 from io import BytesIO
 from typing import Tuple
-
+import io
+import cv2
+import numpy as np
 from PIL import Image as PImage
 from PIL.Image import Image
 from shapely.affinity import rotate
 from shapely.geometry import Polygon
 
+from optical_flow import optical_flow_merging
+from skimage.morphology import binary_erosion
 # https://www.geogebra.org/classic
 # ggbApplet.getXcoord('H').toFixed() + ", " + -ggbApplet.getYcoord('H').toFixed() + ", " + Math.min(ggbApplet.getValue('l1').toFixed(), ggbApplet.getValue('l2').toFixed()) + ", " + Math.max(ggbApplet.getValue('l1').toFixed(), ggbApplet.getValue('l2').toFixed()) + ", " + (ggbApplet.getValue('α')*180/Math.PI).toFixed()
 from render import Render
@@ -82,8 +86,22 @@ def extract_bbox_from(glyph: Image, proposed_bbox: Tuple[int, int, int, int, flo
 
 
 def process(img: Image, proposed_bbox: Tuple[int, int, int, int, float], glyph: Image) -> Image:
-    # TODO: Implement algorithm and return altered glyph
-    return glyph
+    if len(proposed_bbox) == 0:
+        return
+
+    img_np = np.array(img.convert('L')) < 128
+    w, h = glyph.size
+    x, y, _, _, _ = proposed_bbox
+    w2 = w / 2
+    h2 = h / 2
+    img_roi = img_np[y-h2:y+h2, x-w2:x+w2]
+
+    mask_np = np.array(glyph)[..., 3] > 0
+    mask_np = np.flipud(mask_np)
+    y_pad, x_pad = img_roi.shape[0] - mask_np.shape[0], img_roi.shape[1] - mask_np.shape[1]
+    mask_np = np.pad(mask_np, ((int(np.ceil(y_pad / 2)), y_pad // 2), (int(np.ceil(x_pad / 2)), x_pad // 2)))
+    new_mask = optical_flow_merging(img_roi, mask_np)
+    return binary_erosion(new_mask)
 
 
 def bbox_to_polygon(bbox: Tuple[int, int, int, int, float]) -> Polygon:
