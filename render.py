@@ -69,13 +69,20 @@ class Render():
         base_path = glyphs[index_uni].attributes['d'].value
         if self.class_name == 'tupletBracket':
             self.class_name = 'beam'
-        if self.class_name == 'tie':
+        elif self.class_name == 'tie':
             base_path = "m 58.172768,0.3197629 c -8.621801,7.1639345 -49.2377949,7.1639345 -57.85316243,0 v 0 c 8.61536753,6.1963135 49.23136143,6.1963135 57.85316243,0 z"
+            path_alt = parse_path(base_path)
+            bbox = list(path_alt.bbox())
+            bbox[3] = 6.0
+            bbox = tuple(bbox)
         elif self.class_name == 'slur':
             base_path = "m 154,141.7 1.2,1.3 C 140,155 114.7,158 95.8,158 64.5,158 49.6,150.8 40,143.3 l 1.4,-1.9 c 6.7,7.3 33.4,11.7 55.3,11.7 25.2,0 41.9,-2.8 57.3,-11.3 z"
+            path_alt = parse_path(base_path)
+            bbox = path_alt.bbox()
+        else:
+            path_alt = parse_path(base_path)
+            bbox = path_alt.bbox()
 
-        path_alt = parse_path(base_path)
-        bbox = path_alt.bbox()
         xml_str = self.create_svg(bbox, base_path)
 
         png_data = None

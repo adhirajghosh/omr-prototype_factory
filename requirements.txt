@@ -1,3 +1,4 @@
 cairosvg
 svgpathtools
 svgutils
+shapely

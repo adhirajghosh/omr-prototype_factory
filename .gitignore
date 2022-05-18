@@ -131,3 +131,4 @@ dmypy.json
 .idea/*
 svg_files/*
 png_files/*
+images
