@@ -77,10 +77,7 @@ class Render():
                         f"t {self.width / 2.0} -{self.height} " \
                         f"q -{self.width / 4.0} {self.height - 2} -{self.width / 2.0} {self.height - 2} " \
                         f"T 0 0 z"
-            path_alt = parse_path(base_path)
-            bbox = list(path_alt.bbox())
-            bbox[3] = 6.0
-            bbox = tuple(bbox)
+            bbox = (0, self.width, 0, self.height)
         elif self.class_name == 'slur':
             base_path = "m 154,141.7 1.2,1.3 C 140,155 114.7,158 95.8,158 64.5,158 49.6,150.8 40,143.3 l 1.4,-1.9 c 6.7,7.3 33.4,11.7 55.3,11.7 25.2,0 41.9,-2.8 57.3,-11.3 z"
             path_alt = parse_path(base_path)

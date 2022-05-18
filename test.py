@@ -19,9 +19,9 @@ from render import Render
 SAMPLES = [
     ('images/lg-2267728-aug-gutenberg1939--page-2.png', [
         {
-            'proposal': (1475, 2379, 19, 26, 2 / 180.0 * math.pi),
+            'proposal': (1475, 2379, 26, 19, 2 / 180.0 * math.pi),
             'class': 29,  # noteheadHalfOnLine
-            'gt': (1477, 2375, 16, 25, 7 / 180.0 * math.pi)
+            'gt': (1477, 2375, 25, 16, 7 / 180.0 * math.pi)
         },
         {
             'proposal': (125, 161, 45, 104, 0 / 180.0 * math.pi),
@@ -31,9 +31,9 @@ SAMPLES = [
     ]),
     ('images/lg-252689430529936624-aug-beethoven--page-3.png', [
         {
-            'proposal': (506, 568, 16, 152, 0),
+            'proposal': (506, 568, 152, 16, 0),
             'class': 123,  # tie
-            'gt': (507, 569, 13, 148, 0)
+            'gt': (507, 569, 148, 13, 0)
         },
         {
             'proposal': (277, 525, 20, 47, 2 / 180.0 * math.pi),
