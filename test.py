@@ -1,16 +1,17 @@
 import math
 from io import BytesIO
 from typing import Tuple
-import io
-import cv2
+
 import numpy as np
 from PIL import Image as PImage
 from PIL.Image import Image
+from PIL.ImageChops import invert
+from PIL.ImageOps import grayscale
 from shapely.affinity import rotate
 from shapely.geometry import Polygon
+from skimage.morphology import binary_erosion
 
 from optical_flow import optical_flow_merging
-from skimage.morphology import binary_erosion
 # https://www.geogebra.org/classic
 # ggbApplet.getXcoord('H').toFixed() + ", " + -ggbApplet.getYcoord('H').toFixed() + ", " + Math.min(ggbApplet.getValue('l1').toFixed(), ggbApplet.getValue('l2').toFixed()) + ", " + Math.max(ggbApplet.getValue('l1').toFixed(), ggbApplet.getValue('l2').toFixed()) + ", " + (ggbApplet.getValue('α')*180/Math.PI).toFixed()
 from render import Render
@@ -35,7 +36,7 @@ SAMPLES = [
             'gt': (507, 569, 13, 148, 0)
         },
         {
-            'proposal': (272, 528, 23, 52, -20 / 180.0 * math.pi),
+            'proposal': (277, 525, 20, 47, 2 / 180.0 * math.pi),
             'class': 64,  # accidentalSharp
             'gt': (273, 528, 18, 48, 0)
         }
@@ -62,14 +63,21 @@ def get_glyph(cls: int, bbox: Tuple[int, int, int, int, float], padding: int = 5
         class_name=class_name, height=h, width=w, csv_path='name_uni.csv').render(
         'Bravura.svg', save_svg=False, save_png=False)
     with BytesIO(png_data) as bio:
-        return pad(PImage.open(bio).rotate(a * 180.0 / math.pi, PImage.BILINEAR, expand=True, fillcolor=(0, 0, 0, 0)),
-                   padding)
+        img = PImage.open(bio)
+        img.load()
+        img = img.rotate(a * 180.0 / math.pi, PImage.BILINEAR, expand=True, fillcolor=(0, 0, 0, 0))
+        img = img.transpose(PImage.FLIP_TOP_BOTTOM)
+        img = pad(img, padding)
+        glyph = PImage.new("RGB", img.size, (255, 255, 255))
+        glyph.paste(img, mask=img.split()[3])  # 3 is the alpha channel
+        glyph = invert(glyph)
+        return grayscale(glyph)
 
 
 def extract_bbox_from(glyph: Image, proposed_bbox: Tuple[int, int, int, int, float]) -> Tuple[
     int, int, int, int, float]:
     x1, y1, _, _, a = proposed_bbox
-    rectified_glyph = glyph.rotate(-a * 180.0 / math.pi, PImage.BILINEAR, fillcolor=(0, 0, 0, 0))
+    rectified_glyph = glyph.rotate(-a * 180.0 / math.pi, PImage.BILINEAR, fillcolor=0)
     bx1, by1, bx2, by2 = rectified_glyph.getbbox()
     cx1, cy1 = glyph.size
     cx1 /= 2
@@ -94,14 +102,14 @@ def process(img: Image, proposed_bbox: Tuple[int, int, int, int, float], glyph: 
     x, y, _, _, _ = proposed_bbox
     w2 = w / 2
     h2 = h / 2
-    img_roi = img_np[y-h2:y+h2, x-w2:x+w2]
+    img_roi = img_np[int(y - h2):int(y + h2), int(x - w2):int(x + w2)]
 
-    mask_np = np.array(glyph)[..., 3] > 0
+    mask_np = np.array(glyph) > 0
     mask_np = np.flipud(mask_np)
     y_pad, x_pad = img_roi.shape[0] - mask_np.shape[0], img_roi.shape[1] - mask_np.shape[1]
     mask_np = np.pad(mask_np, ((int(np.ceil(y_pad / 2)), y_pad // 2), (int(np.ceil(x_pad / 2)), x_pad // 2)))
     new_mask = optical_flow_merging(img_roi, mask_np)
-    return binary_erosion(new_mask)
+    return PImage.fromarray(binary_erosion(new_mask))
 
 
 def bbox_to_polygon(bbox: Tuple[int, int, int, int, float]) -> Polygon:
@@ -129,7 +137,7 @@ if __name__ == '__main__':
         for sample in samples:
             glyph = get_glyph(sample['class'], sample['proposal'])
             new_glyph = process(img, sample['proposal'], glyph)
-            derived_bbox = extract_bbox_from(new_glyph, sample['proposal'])
+            derived_bbox = extract_bbox_from(glyph, sample['proposal'])
             new_bbox = extract_bbox_from(new_glyph, sample['proposal'])
             iou = calc_loss(sample['gt'], new_bbox)
             base_iou = calc_loss(sample['gt'], derived_bbox)

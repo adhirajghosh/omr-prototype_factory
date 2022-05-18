@@ -1,3 +1,5 @@
 cairosvg
 svgpathtools
 shapely
+opencv-python
+scikit-image
