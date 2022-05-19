@@ -16,7 +16,7 @@
 15,articStaccatoAbove,uniE4A2
 16,articStaccatoBelow,uniE4A3
 17,articTenutoAbove,uniE4A4
-18,articTenutoBelow,uniE4A5
+18,articTenutoBelow,uniE4A4
 19,augmentationDot,uniE1FC
 20,beam,uniE980
 21,brace,uniE000
@@ -96,7 +96,6 @@
 95,rest8th,uniE4E6
 96,restDoubleWhole,uniE4E2
 97,restHBar,uniE4EE
-98,restHNr,uniX0
 99,restHalf,uniE4E4
 100,restQuarter,uniE4E5
 101,restWhole,uniE4E3
