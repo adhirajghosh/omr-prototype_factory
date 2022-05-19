@@ -5,6 +5,8 @@ from xml.dom import minidom
 import numpy as np
 from cairosvg import svg2png
 from svgpathtools import parse_path
+from PIL import Image as PImage
+from io import BytesIO
 
 
 class Render():
@@ -93,8 +95,15 @@ class Render():
             out_folder = Path('png_files')
             out_folder.mkdir(exist_ok=True)
             png_path = out_folder / self.class_name
-            svg2png(bytestring=xml_str.encode(), write_to=str(png_path.with_suffix('.png')), output_width=self.width,
-                    output_height=self.height)
+            # svg2png(bytestring=xml_str.encode(), write_to=str(png_path.with_suffix('.png')), output_width=self.width,
+            #         output_height=self.height)
+            png_data = svg2png(bytestring=xml_str.encode(), output_width=self.width, output_height=self.height)
+            with BytesIO(png_data) as bio:
+                img = PImage.open(bio)
+                img.load()
+                # img = img.rotate(a * 180.0 / math.pi, PImage.BILINEAR, expand=True, fillcolor=(0, 0, 0, 0))
+                img = img.transpose(PImage.FLIP_TOP_BOTTOM)
+                img.save(str(png_path.with_suffix('.png')))
         else:
             png_data = svg2png(bytestring=xml_str.encode(), output_width=self.width, output_height=self.height)
 
