@@ -67,11 +67,13 @@ class Render():
 
         glyphs = file.getElementsByTagName('glyph')
         glyph_names = [glyph.attributes["glyph-name"].value for glyph in glyphs]
-        index_uni = glyph_names.index(uni_dict[self.class_name])
-        base_path = glyphs[index_uni].attributes['d'].value
         if self.class_name == 'tupletBracket':
             self.class_name = 'beam'
-        elif self.class_name == 'tie':
+        elif self.class_name == 'slur':
+            self.class_name = 'tie'
+        index_uni = glyph_names.index(uni_dict[self.class_name])
+        base_path = glyphs[index_uni].attributes['d'].value
+        if self.class_name == 'tie':
             # example for 50x10
             # m 0 0 q 25 10 50 10 t 50 -10 q -25 8 -50 8 T 0 0 z
             base_path = f"m 0 0 " \
@@ -80,10 +82,10 @@ class Render():
                         f"q -{self.width / 4.0} {self.height - 2} -{self.width / 2.0} {self.height - 2} " \
                         f"T 0 0 z"
             bbox = (0, self.width, 0, self.height)
-        elif self.class_name == 'slur':
-            base_path = "m 154,141.7 1.2,1.3 C 140,155 114.7,158 95.8,158 64.5,158 49.6,150.8 40,143.3 l 1.4,-1.9 c 6.7,7.3 33.4,11.7 55.3,11.7 25.2,0 41.9,-2.8 57.3,-11.3 z"
-            path_alt = parse_path(base_path)
-            bbox = path_alt.bbox()
+        # elif self.class_name == 'slur':
+        #     base_path = "m 154,141.7 1.2,1.3 C 140,155 114.7,158 95.8,158 64.5,158 49.6,150.8 40,143.3 l 1.4,-1.9 c 6.7,7.3 33.4,11.7 55.3,11.7 25.2,0 41.9,-2.8 57.3,-11.3 z"
+        #     path_alt = parse_path(base_path)
+        #     bbox = path_alt.bbox()
         else:
             path_alt = parse_path(base_path)
             bbox = path_alt.bbox()
