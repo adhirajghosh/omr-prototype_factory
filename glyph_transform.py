@@ -73,9 +73,9 @@ class GlyphGenerator:
         """
 
         def add_padding(img, top, right, bottom, left):
-            width, height = img.shape[0], img.shape[1]
-            new_width = width + right + left
-            new_height = height + top + bottom
+            # width, height = img.shape[0], img.shape[1]
+            # new_width = width + right + left
+            # new_height = height + top + bottom
             #     result = PImage.new(img.mode, (new_width, new_height), (255,255, 255))
             #     result.paste(img, (left, top))
             result = np.pad(img, ((top, bottom), (left, right), (0, 0)), mode='constant', constant_values=255)
