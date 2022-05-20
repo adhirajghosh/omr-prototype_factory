@@ -84,3 +84,12 @@ def get_transformed_glyph(args) -> np.array:
 
     return np.array(img)
 
+def main():
+    args = parse_args()
+
+    img = get_transformed_glyph(args)
+    print(img.shape)
+
+
+if __name__ == '__main__':
+    main()
