@@ -23,6 +23,8 @@ from render import Render
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+# [x_ctr,y_ctr,w,h,angle]
+
 SAMPLES = [
     ('images/lg-2267728-aug-gutenberg1939--page-2.png', [
         {
@@ -157,17 +159,22 @@ def process2(img: Image, proposed_bbox: Tuple[int, int, int, int, float], glyph:
 
     best_glyph, best_overlap = None, -1
 
-    n_tests = len(np.arange(orig_angle - 0.1, orig_angle + 0.1, 0.01)) * len(
-        range(orig_width + 5, img_roi.shape[0] - orig_width - 5)) * len(
-        range(orig_height + 5, img_roi.shape[1] - orig_height - 5))
-    print("Number of Tests:", n_tests, "Estimated Duration:", 0.33 * n_tests)
-    print("Number of Tests with sizes:", n_tests * 10 * 10, "Estimated Duration:", 0.33 * n_tests * 10 * 10)
+    angles = np.arange(orig_angle - 0.1, orig_angle + 0.1, 0.01)
+    x_shifts = range(img_roi.shape[0] // 2 - 10, img_roi.shape[0] // 2 + 10)
+    y_shifts = range(img_roi.shape[1] // 2 - 10, img_roi.shape[1] - orig_height // 2 + 10)
+    widths = range(orig_width, orig_width + 2)
+    heights = range(orig_height, orig_height + 2)
 
-    for angle in tqdm(np.arange(orig_angle - 0.1, orig_angle + 0.1, 0.01)):
-        for x_shift in range(orig_width + 5, img_roi.shape[0] - orig_width - 5):
-            for y_shift in range(orig_height + 5, img_roi.shape[1] - orig_height - 5):
-                for width in [orig_width]:  # range(orig_width - 1, orig_width + 2):
-                    for height in [orig_height]:  # range(orig_height - 1, orig_height + 2):
+    n_tests = len(angles) * len(x_shifts) * len(y_shifts) * len(widths) * len(heights)
+    print("Number of tests:", n_tests, "Estimated duration", n_tests * 0.00023)
+
+    assert len(x_shifts) > 0 and len(y_shifts) > 0
+
+    for angle in tqdm(angles):
+        for x_shift in x_shifts:
+            for y_shift in y_shifts:
+                for width in widths:
+                    for height in heights:
                         padding_left = x_shift
                         padding_right = img_roi.shape[0] - padding_left
                         padding_top = y_shift

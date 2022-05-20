@@ -101,8 +101,10 @@ class GlyphGenerator:
         #img2 = add_padding(img2, padding_top, padding_right, padding_bottom, padding_left)
 
         img2 = np.array(img2)
-        img2 = np.pad(img2[..., 3], ((int(np.floor(padding_left - img2.shape[0] / 2)), int(np.ceil(padding_right - img2.shape[0] / 2))), (int(np.floor(padding_top - img2.shape[1] / 2)), int(np.ceil(padding_bottom - img2.shape[1] / 2)))))
-
+        try:
+            img2 = np.pad(img2[..., 3], ((int(np.floor(padding_left - img2.shape[0] / 2)), int(np.ceil(padding_right - img2.shape[0] / 2))), (int(np.floor(padding_top - img2.shape[1] / 2)), int(np.ceil(padding_bottom - img2.shape[1] / 2)))))
+        except ValueError as e:
+            print(e)
 
         return img2
 
