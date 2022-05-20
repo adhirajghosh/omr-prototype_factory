@@ -73,12 +73,10 @@ class GlyphGenerator:
         """
 
         def add_padding(img, top, right, bottom, left):
-            # width, height = img.shape[0], img.shape[1]
-            # new_width = width + right + left
-            # new_height = height + top + bottom
-            #     result = PImage.new(img.mode, (new_width, new_height), (255,255, 255))
-            #     result.paste(img, (left, top))
-            result = np.pad(img, ((top, bottom), (left, right), (0, 0)), mode='constant', constant_values=255)
+            new_width = right + left
+            new_height = top + bottom
+            result = PImage.new(img.mode, (new_width, new_height), (0, 0, 0))
+            result.paste(img, (left, top))
             return result
 
         # Assuming the angle is not formatted, if it is comment the next line
@@ -98,11 +96,15 @@ class GlyphGenerator:
             self.last_symbol = img.copy()
 
 
-        img = img.rotate(glyph_angle * 180.0 / math.pi, PImage.BILINEAR, expand=True, fillcolor=(0, 0, 0, 0))
-        img = img.transpose(PImage.FLIP_TOP_BOTTOM)
-        img = add_padding(img, padding_top, padding_right, padding_bottom, padding_left)
+        img2 = img.rotate(glyph_angle * 180.0 / math.pi, PImage.BILINEAR, expand=True, fillcolor=(0, 0, 0, 0))
+        img2 = img2.transpose(PImage.FLIP_TOP_BOTTOM)
+        #img2 = add_padding(img2, padding_top, padding_right, padding_bottom, padding_left)
 
-        return np.array(img)
+        img2 = np.array(img2)
+        img2 = np.pad(img2[..., 3], ((int(np.floor(padding_left - img2.shape[0] / 2)), int(np.ceil(padding_right - img2.shape[0] / 2))), (int(np.floor(padding_top - img2.shape[1] / 2)), int(np.ceil(padding_bottom - img2.shape[1] / 2)))))
+
+
+        return img2
 
 
 def main():

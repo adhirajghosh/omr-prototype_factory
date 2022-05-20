@@ -155,7 +155,7 @@ def process2(img: Image, proposed_bbox: Tuple[int, int, int, int, float], glyph:
 
     glyph = GlyphGenerator()
 
-    best_glyph, best_overlap = None, 0
+    best_glyph, best_overlap = None, -1
 
     n_tests = len(np.arange(orig_angle - 0.1, orig_angle + 0.1, 0.01)) * len(
         range(orig_width + 5, img_roi.shape[0] - orig_width - 5)) * len(
@@ -166,8 +166,8 @@ def process2(img: Image, proposed_bbox: Tuple[int, int, int, int, float], glyph:
     for angle in tqdm(np.arange(orig_angle - 0.1, orig_angle + 0.1, 0.01)):
         for x_shift in range(orig_width + 5, img_roi.shape[0] - orig_width - 5):
             for y_shift in range(orig_height + 5, img_roi.shape[1] - orig_height - 5):
-                for width in [orig_width]:  # range(orig_width - 3, orig_width + 3):
-                    for height in [orig_height]:  # range(orig_height - 3, orig_height + 3):
+                for width in [orig_width]:  # range(orig_width - 1, orig_width + 2):
+                    for height in [orig_height]:  # range(orig_height - 1, orig_height + 2):
                         padding_left = x_shift
                         padding_right = img_roi.shape[0] - padding_left
                         padding_top = y_shift
@@ -176,16 +176,16 @@ def process2(img: Image, proposed_bbox: Tuple[int, int, int, int, float], glyph:
                         proposed_glyph = glyph.get_transformed_glyph(class_id, width, height, angle, padding_left,
                                                                      padding_right, padding_top, padding_bottom)
 
-                        # import matplotlib.pyplot as plt
-                        # plt.imshow(proposed_glyph)
-                        # plt.show()
+                        #import matplotlib.pyplot as plt
+                        #plt.imshow(proposed_glyph)
+                        #plt.show()
 
-
-                        overlap = np.average(img_roi[proposed_glyph[..., 3] < 128])
+                        overlap = np.average(img_roi[proposed_glyph > 128])
                         if overlap > best_overlap:
                             best_overlap = overlap
                             best_glyph = proposed_glyph
 
+    #best_glyph = np.repeat(best_glyph[:, :, np.newaxis], 4, axis=2)
     return PImage.fromarray(best_glyph)
 
 
