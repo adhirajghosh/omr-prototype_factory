@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image as PImage
 from PIL.Image import Image
 from PIL.ImageChops import invert
+from PIL.ImageDraw import Draw
 from PIL.ImageOps import grayscale
 from shapely.affinity import rotate
 from shapely.geometry import Polygon
@@ -14,7 +15,7 @@ from skimage.morphology import binary_erosion
 
 from optical_flow import optical_flow_merging
 # https://www.geogebra.org/classic
-# ggbApplet.getXcoord('H').toFixed() + ", " + -ggbApplet.getYcoord('H').toFixed() + ", " + Math.min(ggbApplet.getValue('l1').toFixed(), ggbApplet.getValue('l2').toFixed()) + ", " + Math.max(ggbApplet.getValue('l1').toFixed(), ggbApplet.getValue('l2').toFixed()) + ", " + (ggbApplet.getValue('α')*180/Math.PI).toFixed()
+# ggbApplet.getXcoord('H').toFixed() + ", " + -ggbApplet.getYcoord('H').toFixed() + ", " + ggbApplet.getValue('w').toFixed() + ", " + ggbApplet.getValue('h').toFixed() + ", " + (ggbApplet.getValue('α')*180/Math.PI).toFixed()
 from render import Render
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -22,26 +23,26 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 SAMPLES = [
     ('images/lg-2267728-aug-gutenberg1939--page-2.png', [
         {
-            'proposal': (1475, 2379, 19, 26, 2 / 180.0 * math.pi),
+            'proposal': (1461, 1238, 25, 16, 7 / 180.0 * math.pi),
             'class': 29,  # noteheadHalfOnLine
-            'gt': (1477, 2375, 16, 25, 7 / 180.0 * math.pi)
+            'gt': (1469, 1236, 24, 18, 0)
         },
         {
-            'proposal': (125, 161, 45, 104, 0 / 180.0 * math.pi),
+            'proposal': (113, 155, 42, 92, 2 / 180.0 * math.pi),
             'class': 6,  # clefG
-            'gt': (127, 164, 44, 101, 5 / 180.0 * math.pi)
+            'gt': (128, 165, 43, 101, 0)
         }
     ]),
     ('images/lg-252689430529936624-aug-beethoven--page-3.png', [
         {
-            'proposal': (506, 568, 16, 152, 0),
+            'proposal': (499, 565, 144, 14, 0),
             'class': 123,  # tie
-            'gt': (507, 569, 13, 148, 0)
+            'gt': (507, 569, 147, 14, 0)
         },
         {
-            'proposal': (277, 525, 20, 47, 2 / 180.0 * math.pi),
+            'proposal': (271, 523, 17, 45, -8 / 180 * math.pi),
             'class': 64,  # accidentalSharp
-            'gt': (273, 528, 18, 48, 0)
+            'gt': (273, 528, 19, 49, 0)
         }
     ])
 ]
@@ -84,11 +85,17 @@ def get_glyphs(cls: int, bbox: Tuple[int, int, int, int, float], padding: int = 
     return [glyph]
 
 
-def extract_bbox_from(glyph: Image, proposed_bbox: Tuple[int, int, int, int, float]) -> Tuple[
+def extract_bbox_from(glyph: Image, proposed_bbox: Tuple[int, int, int, int, float], cls: int) -> Tuple[
     int, int, int, int, float]:
     x1, y1, _, _, a = proposed_bbox
+    angle = 0.0
+    if cls in [123]:  # Transfer angle if tie, slur etc.
+        angle = a
     rectified_glyph = glyph.rotate(-a * 180.0 / math.pi, PImage.BILINEAR, fillcolor=0)
-    bx1, by1, bx2, by2 = rectified_glyph.getbbox()
+    bbox = rectified_glyph.getbbox()
+    if bbox is None:
+        return 0, 0, 0, 0, 0.0
+    bx1, by1, bx2, by2 = bbox
     cx1, cy1 = glyph.size
     cx1 /= 2
     cy1 /= 2
@@ -100,7 +107,7 @@ def extract_bbox_from(glyph: Image, proposed_bbox: Tuple[int, int, int, int, flo
     cydiff = cy2 - cy1
     x2 = x1 + cxdiff
     y2 = y1 + cydiff
-    return int(x2), int(y2), int(w), int(h), a
+    return int(x2), int(y2), int(w), int(h), angle
 
 
 def process(img: Image, proposed_bbox: Tuple[int, int, int, int, float], glyph: Image) -> Image:
@@ -141,17 +148,42 @@ def calc_loss(bbox1: Tuple[int, int, int, int, float], bbox2: Tuple[int, int, in
     return a.intersection(b).area / a.union(b).area
 
 
+def visualize(crop: Image, prop_bbox: Tuple[int, int, int, int, float], gt_bbox: Tuple[int, int, int, int, float],
+              gt_glyph: Image, new_bbox: Tuple[int, int, int, int, float], new_glyph: Image):
+    img = crop.copy().convert('RGBA')
+    draw = Draw(img, 'RGBA')
+    draw.polygon(list(bbox_to_polygon(prop_bbox).exterior.coords)[:4], outline='#E00')
+    draw.polygon(list(bbox_to_polygon(gt_bbox).exterior.coords)[:4], outline='#1F2')
+    draw.polygon(list(bbox_to_polygon(new_bbox).exterior.coords)[:4], outline='#EC0')
+    # x, y, _, _, _ = prop_bbox
+    # glyph_img = PImage.new('RGBA', img.size, '#0000')
+    # Draw(glyph_img).bitmap((x - (gt_glyph.width // 2), y - (gt_glyph.height // 2)), gt_glyph, fill='#E005')
+    # img = PImage.alpha_composite(img, glyph_img)
+    x, y, _, _, _ = gt_bbox
+    glyph_img = PImage.new('RGBA', img.size, '#0000')
+    Draw(glyph_img).bitmap((x - (gt_glyph.width // 2), y - (gt_glyph.height // 2)), gt_glyph, fill='#1F28')
+    img = PImage.alpha_composite(img, glyph_img)
+    x, y, _, _, _ = new_bbox
+    glyph_img = PImage.new('RGBA', img.size, '#0000')
+    Draw(glyph_img).bitmap((x - (new_glyph.width // 2), y - (new_glyph.height // 2)), new_glyph, fill='#EC0A')
+    img = PImage.alpha_composite(img, glyph_img)
+    x, y, w, h, _ = gt_bbox
+    s = int(math.sqrt(w ** 2 + h ** 2))
+    img.crop((x - s, y - s, x + s, y + s)).show()
+
+
 if __name__ == '__main__':
     for image_fp, samples in SAMPLES:
         img = PImage.open(image_fp)
         for sample in samples:
             scores = []
             print(f"IoU [{sample['class']}]: ", end='')
-            for glyph in get_glyphs(sample['class'], sample['proposal']):
+            for glyph in get_glyphs(sample['class'], sample['proposal'], 0):
                 new_glyph = process(img, sample['proposal'], glyph)
-                derived_bbox = extract_bbox_from(glyph, sample['proposal'])
-                new_bbox = extract_bbox_from(new_glyph, sample['proposal'])
+                derived_bbox = extract_bbox_from(glyph, sample['proposal'], sample['class'])
+                new_bbox = extract_bbox_from(new_glyph, sample['proposal'], sample['class'])
                 iou = calc_loss(sample['gt'], new_bbox)
                 base_iou = calc_loss(sample['gt'], derived_bbox)
+                visualize(img, sample['proposal'], sample['gt'], glyph, new_bbox, new_glyph)
                 print(f", {iou:.3} (baseline: {base_iou:.3})", end='')
             print()
