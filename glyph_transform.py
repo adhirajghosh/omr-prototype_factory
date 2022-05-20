@@ -70,7 +70,7 @@ def get_transformed_glyph(args) -> np.array:
         return result
 
     # Assuming the angle is not formatted, if it is comment the next line
-    glyph_angle = args.glyph_angle / 180.0 * math.pi
+    # glyph_angle = args.glyph_angle / 180.0 * math.pi
 
     class_name = class_names[args.class_id + 1]  # Taken from detection service, don't know why +1 is done
     case = Render(class_name=class_name, height=args.glyph_height, width=args.glyph_width, csv_path=args.csv_path)
@@ -78,7 +78,7 @@ def get_transformed_glyph(args) -> np.array:
     with BytesIO(png_data) as bio:
         img = PImage.open(bio)
         img.load()
-        img = img.rotate(glyph_angle * 180.0 / math.pi, PImage.BILINEAR, expand=True, fillcolor=(0, 0, 0, 0))
+        img = img.rotate(args.glyph_angle * 180.0 / math.pi, PImage.BILINEAR, expand=True, fillcolor=(0, 0, 0, 0))
         img = img.transpose(PImage.FLIP_TOP_BOTTOM)
         img = add_padding(img, args.padding_top, args.padding_right, args.padding_bottom, args.padding_left)
 
