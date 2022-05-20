@@ -1,9 +1,11 @@
+import argparse
 import math
-from render import Render
 from io import BytesIO
+
 import numpy as np
 from PIL import Image as PImage
-import argparse
+
+from render import Render
 
 class_names = (
     'brace', 'ledgerLine', 'repeatDot', 'segno', 'coda', 'clefG', 'clefCAlto', 'clefCTenor', 'clefF',
@@ -30,6 +32,7 @@ class_names = (
     'tuplet7', 'tuplet8', 'tuplet9', 'tupletBracket', 'staff', 'ottavaBracket'
 )
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Glyph transformation for effective post processing')
     parser.add_argument('--class_id', help='Id of the DeepScore Class', type=int, default=5)
@@ -47,42 +50,58 @@ def parse_args():
 
     return args
 
+class GlyphGenerator:
 
-# def get_transformed_glyph(class_id: int, glyph_width: int, glyph_height: int, glyph_angle: float, array_width: int,
-#                           array_height: int) -> np.array:
-def get_transformed_glyph(args) -> np.array:
-    """
-    returns a glyph according the parameters
-    :param class_id: The class id (type of the glyph)
-    :param glyph_width: width of the glyph
-    :param glyph_height: height of the glyph
-    :param glyph_angle: angle of the glyph
-    :param array_width: width of the returned numpy array
-    :param array_height: height of the returned numpy array
-    :return: numpy array with the glyph
-    """
+    def __init__(self):
+        self.last_id = None
+        self.last_symbol = None
 
-    def add_padding(img, top, right, bottom, left):
-        new_width = right + left
-        new_height = top + bottom
-        result = PImage.new(img.mode, (new_width, new_height), (255, 255, 255))
-        result.paste(img, (left, top))
-        return result
+    def get_transformed_glyph(self, class_id: int, glyph_width: int, glyph_height: int, glyph_angle: float, padding_left: int,
+                              padding_right: int, padding_top: int, padding_bottom: int, svg_path: str = 'Bravura.svg', csv_path:str = 'name_uni.csv') -> np.array:
+        """
+        returns a glyph according the parameters
 
-    # Assuming the angle is not formatted, if it is comment the next line
-    glyph_angle = args.glyph_angle / 180.0 * math.pi
+        :param class_id: The class id (type of the glyph)
+        :param glyph_width: width of the glyph
+        :param glyph_height: height of the glyph
+        :param glyph_angle: angle of the glyph
+        :param padding_left: padding along the horizontal axis, padding on the left side of the glyph center
+        :param padding_right: padding along the horizontal axis, padding on the right side of the glyph center
+        :param padding_top: padding along vertical axis, padding above the glyph
+        :param padding_bottom: padding along vertical axis, padding below the glyph
+        :return: numpy array with the glyph
+        """
 
-    class_name = class_names[args.class_id + 1]  # Taken from detection service, don't know why +1 is done
-    case = Render(class_name=class_name, height=args.glyph_height, width=args.glyph_width, csv_path=args.csv_path)
-    png_data = case.render(args.svg_path)
-    with BytesIO(png_data) as bio:
-        img = PImage.open(bio)
-        img.load()
+        def add_padding(img, top, right, bottom, left):
+            new_width = right + left
+            new_height = top + bottom
+            result = PImage.new(img.mode, (new_width, new_height), (255, 255, 255))
+            result.paste(img, (left, top))
+            return result
+
+        # Assuming the angle is not formatted, if it is comment the next line
+        # glyph_angle = glyph_angle / 180.0 * math.pi
+
+        if class_id == self.last_id:
+            img = self.last_symbol
+        else:
+            class_name = class_names[class_id + 1]  # Taken from detection service, don't know why +1 is done
+            case = Render(class_name=class_name, height=glyph_height, width=glyph_width, csv_path=csv_path)
+            png_data = case.render(svg_path)
+            with BytesIO(png_data) as bio:
+                img = PImage.open(bio)
+                img.load()
+
+            self.last_id = class_id
+            self.last_symbol = img.copy()
+
+
         img = img.rotate(glyph_angle * 180.0 / math.pi, PImage.BILINEAR, expand=True, fillcolor=(0, 0, 0, 0))
         img = img.transpose(PImage.FLIP_TOP_BOTTOM)
-        img = add_padding(img, args.padding_top, args.padding_right, args.padding_bottom, args.padding_left)
+        img = add_padding(img, padding_top, padding_right, padding_bottom, padding_left)
 
-    return np.array(img)
+        return np.array(img)
+
 
 def main():
     args = parse_args()

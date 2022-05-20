@@ -1,4 +1,5 @@
 import math
+import time
 from io import BytesIO
 from typing import Tuple
 
@@ -10,7 +11,9 @@ from PIL.ImageOps import grayscale
 from shapely.affinity import rotate
 from shapely.geometry import Polygon
 from skimage.morphology import binary_erosion
+from tqdm import tqdm
 
+from glyph_transform import GlyphGenerator
 from optical_flow import optical_flow_merging
 # https://www.geogebra.org/classic
 # ggbApplet.getXcoord('H').toFixed() + ", " + -ggbApplet.getYcoord('H').toFixed() + ", " + Math.min(ggbApplet.getValue('l1').toFixed(), ggbApplet.getValue('l2').toFixed()) + ", " + Math.max(ggbApplet.getValue('l1').toFixed(), ggbApplet.getValue('l2').toFixed()) + ", " + (ggbApplet.getValue('α')*180/Math.PI).toFixed()
@@ -93,7 +96,84 @@ def extract_bbox_from(glyph: Image, proposed_bbox: Tuple[int, int, int, int, flo
     return int(x2), int(y2), int(w), int(h), a
 
 
-def process(img: Image, proposed_bbox: Tuple[int, int, int, int, float], glyph: Image) -> Image:
+# def get_transformed_glyph(class_id: int, glyph_width: int, glyph_height: int, glyph_angle: float, padding_left: int,
+#                          padding_right: int, padding_top: int, padding_bottom: int) -> np.array:
+#    """
+#    returns a glyph according the parameters
+#
+#    :param class_id: The class id (type of the glyph)
+#    :param glyph_width: width of the glyph
+#    :param glyph_height: height of the glyph
+#    :param glyph_angle: angle of the glyph
+#    :param padding_left: padding along the horizontal axis, padding on the left side of the glyph center
+#    :param padding_right: padding along the horizontal axis, padding on the right side of the glyph center
+#    :param padding_top: padding along vertical axis, padding above the glyph
+#    :param padding_bottom: padding along vertical axis, padding below the glyph
+#    :return: numpy array with the glyph
+#    """
+#    print("Class ID:", class_id, "Width:", glyph_width, "Height:", glyph_height, "Angle:", glyph_angle, "Padding Left:",
+#          padding_left, "Padding Right:", padding_right, "Padding Top:", padding_top, "Padding Bottom", padding_bottom,
+#          "Array Size:", padding_left + padding_right, "x", padding_top + padding_bottom)
+#    return np.zeros((padding_left + padding_right, padding_top + padding_bottom))
+
+def get_roi(img, bbox):
+    area_size = (np.sqrt(bbox[2] ** 2 + bbox[3] ** 2) + 50) / 2
+    x_min, x_max = int(max(0, np.floor(bbox[0] - area_size))), int(min(img.shape[1], np.ceil(bbox[0] + area_size)))
+    y_min, y_max = int(max(0, np.floor(bbox[1] - area_size))), int(min(img.shape[0], np.ceil(bbox[1] + area_size)))
+
+    return img[y_min:y_max, x_min:x_max]
+
+
+def process2(img: Image, proposed_bbox: Tuple[int, int, int, int, float], glyph: Image,
+             class_id: int = None) -> Image:
+    if len(proposed_bbox) == 0:
+        return
+
+    img_np = np.array(img.convert('L')) < 128
+    img_roi = get_roi(img_np, proposed_bbox)
+
+    orig_angle = proposed_bbox[4]
+    orig_width = round(abs(proposed_bbox[2] * math.sin(orig_angle)) + abs(proposed_bbox[3] * math.cos(orig_angle)))
+    orig_height = round(abs(proposed_bbox[2] * math.cos(orig_angle)) + abs(proposed_bbox[3] * math.sin(orig_angle)))
+
+    glyph = GlyphGenerator()
+
+    best_glyph, best_overlap = None, 0
+
+    n_tests = len(np.arange(orig_angle - 0.1, orig_angle + 0.1, 0.01)) * len(
+        range(orig_width + 5, img_roi.shape[0] - orig_width - 5)) * len(
+        range(orig_height + 5, img_roi.shape[1] - orig_height - 5))
+    print("Number of Tests:", n_tests, "Estimated Duration:", 0.33 * n_tests)
+    print("Number of Tests with sizes:", n_tests * 10 * 10, "Estimated Duration:", 0.33 * n_tests * 10 * 10)
+
+    for angle in tqdm(np.arange(orig_angle - 0.1, orig_angle + 0.1, 0.01)):
+        for x_shift in range(orig_width + 5, img_roi.shape[0] - orig_width - 5):
+            for y_shift in range(orig_height + 5, img_roi.shape[1] - orig_height - 5):
+                for width in [orig_width]:  # range(orig_width - 3, orig_width + 3):
+                    for height in [orig_height]:  # range(orig_height - 3, orig_height + 3):
+                        padding_left = x_shift
+                        padding_right = img_roi.shape[0] - padding_left
+                        padding_top = y_shift
+                        padding_bottom = img_roi.shape[1] - padding_top
+
+                        proposed_glyph = glyph.get_transformed_glyph(class_id, width, height, angle, padding_left,
+                                                                     padding_right, padding_top, padding_bottom)
+
+                        # import matplotlib.pyplot as plt
+                        # plt.imshow(proposed_glyph)
+                        # plt.show()
+
+
+                        overlap = np.average(img_roi[proposed_glyph[..., 3] < 128])
+                        if overlap > best_overlap:
+                            best_overlap = overlap
+                            best_glyph = proposed_glyph
+
+    return PImage.fromarray(best_glyph)
+
+
+def process(img: Image, proposed_bbox: Tuple[int, int, int, int, float], glyph: Image,
+            class_id: int = None) -> Image:
     if len(proposed_bbox) == 0:
         return
 
@@ -136,7 +216,7 @@ if __name__ == '__main__':
         img = PImage.open(image_fp)
         for sample in samples:
             glyph = get_glyph(sample['class'], sample['proposal'])
-            new_glyph = process(img, sample['proposal'], glyph)
+            new_glyph = process2(img, sample['proposal'], glyph, sample['class'])
             derived_bbox = extract_bbox_from(glyph, sample['proposal'])
             new_bbox = extract_bbox_from(new_glyph, sample['proposal'])
             iou = calc_loss(sample['gt'], new_bbox)
