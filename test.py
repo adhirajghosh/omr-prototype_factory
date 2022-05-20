@@ -122,8 +122,6 @@ def extract_bbox_from(glyph: Image, prop_bbox: np.ndarray, cls: str) -> np.ndarr
     return np.array([int(x2), int(y2), int(w), int(h), angle])
 
 
-def process(img: Image, bbox: np.ndarray, glyph: Image) -> Image:
-    if len(bbox) == 0:
 # def get_transformed_glyph(class_id: int, glyph_width: int, glyph_height: int, glyph_angle: float, padding_left: int,
 #                          padding_right: int, padding_top: int, padding_bottom: int) -> np.array:
 #    """
@@ -152,17 +150,16 @@ def get_roi(img, bbox):
     return img[y_min:y_max, x_min:x_max]
 
 
-def process2(img: Image, proposed_bbox: Tuple[int, int, int, int, float], glyph: Image,
-             class_id: int = None) -> Image:
-    if len(proposed_bbox) == 0:
+def process2(img: Image, bbox: np.ndarray, glyph: Image, cls: str) -> Image:
+    if len(bbox) == 0:
         return
 
     img_np = np.array(img.convert('L')) < 128
-    img_roi = get_roi(img_np, proposed_bbox)
+    img_roi = get_roi(img_np, bbox)
 
-    orig_angle = proposed_bbox[4]
-    orig_width = round(abs(proposed_bbox[2] * math.sin(orig_angle)) + abs(proposed_bbox[3] * math.cos(orig_angle)))
-    orig_height = round(abs(proposed_bbox[2] * math.cos(orig_angle)) + abs(proposed_bbox[3] * math.sin(orig_angle)))
+    orig_angle = bbox[4]
+    orig_width = round(abs(bbox[2] * math.sin(orig_angle)) + abs(bbox[3] * math.cos(orig_angle)))
+    orig_height = round(abs(bbox[2] * math.cos(orig_angle)) + abs(bbox[3] * math.sin(orig_angle)))
 
     glyph = GlyphGenerator()
 
@@ -205,9 +202,8 @@ def process2(img: Image, proposed_bbox: Tuple[int, int, int, int, float], glyph:
     return PImage.fromarray(best_glyph)
 
 
-def process(img: Image, proposed_bbox: Tuple[int, int, int, int, float], glyph: Image,
-            class_id: int = None) -> Image:
-    if len(proposed_bbox) == 0:
+def process(img: Image, bbox: np.ndarray, glyph: Image, cls: str) -> Image:
+    if len(bbox) == 0:
         return
 
     img_np = np.array(img.convert('L')) < 128
@@ -279,7 +275,7 @@ if __name__ == '__main__':
             gt_bbox: np.ndarray = sample['gt'][:5].astype(np.float)
             print(f"IoU [{cls}]: ", end='')
             for glyph in get_glyphs(cls, prop_bbox, 0):
-                new_glyph = process(img, prop_bbox, glyph, sample['class'])
+                new_glyph = process(img, prop_bbox, glyph, cls)
                 derived_bbox = extract_bbox_from(glyph, prop_bbox, cls)
                 new_bbox = extract_bbox_from(new_glyph, prop_bbox, cls)
                 iou = calc_loss(gt_bbox, new_bbox)
