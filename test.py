@@ -1,7 +1,7 @@
 import math
 import warnings
 from io import BytesIO
-from typing import Tuple, List
+from typing import List
 
 import numpy as np
 from PIL import Image as PImage
@@ -14,36 +14,44 @@ from shapely.geometry import Polygon
 from skimage.morphology import binary_erosion
 
 from optical_flow import optical_flow_merging
-# https://www.geogebra.org/classic
-# ggbApplet.getXcoord('H').toFixed() + ", " + -ggbApplet.getYcoord('H').toFixed() + ", " + ggbApplet.getValue('w').toFixed() + ", " + ggbApplet.getValue('h').toFixed() + ", " + (ggbApplet.getValue('α')*180/Math.PI).toFixed()
 from render import Render
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+# https://www.geogebra.org/calculator
+# ggbApplet.getXcoord('H').toFixed() + ", " + -ggbApplet.getYcoord('H').toFixed() + ", " + ggbApplet.getValue('w').toFixed() + ", " + ggbApplet.getValue('h').toFixed() + ", " + ggbApplet.getValue('α').toPrecision(4)
+# or
+# ggbApplet.getXcoord('H').toFixed() + ", " + -ggbApplet.getYcoord('H').toFixed() + ", " + ggbApplet.getValue('w').toFixed() + ", " + ggbApplet.getValue('h').toFixed() + ", " + -ggbApplet.getValue('β').toPrecision(4)
 SAMPLES = [
-    ('images/lg-2267728-aug-gutenberg1939--page-2.png', [
+    ('images/sample.png', [
         {
-            'proposal': (1461, 1238, 25, 16, 7 / 180.0 * math.pi),
-            'class': 29,  # noteheadHalfOnLine
-            'gt': (1469, 1236, 24, 18, 0)
+            'proposal': np.array([155, 242, 110, 41, 1.4105, "clefG"]),
+            'gt': np.array([156, 240, 43, 116, 0.0, "clefG"])
+        }, {
+            'proposal': np.array([513, 180, 19, 16, -0.2863, "noteheadBlackOnLine"]),
+            'gt': np.array([513, 180, 19, 17, 0.0, "noteheadBlackOnLine"])
+        }, {
+            'proposal': np.array([513, 163, 71, 14, -0.0841, "slur"]),
+            'gt': np.array([512, 164, 75, 18, 0.1401, "slur"])
+        }, {
+            'proposal': np.array([619, 240, 30, 16, 1.8093, "rest8th"]),
+            'gt': np.array([621, 240, 17, 27, 0.0, "rest8th"])
+        }, {
+            'proposal': np.array([946, 311, 43, 13, 2.1764, "dynamicF"]),
+            'gt': np.array([948, 312, 34, 37, 0.0, "dynamicF"])
+        }, {
+            'proposal': np.array([985, 193, 28, 3, 0.277, "ledgerLine"]),
+            'gt': np.array([987, 194, 26, 3, 0.0, "ledgerLine"])
+        }, {
+            'proposal': np.array([1308, 266, 98, 5, 0.0303, "beam"]),
+            'gt': np.array([1310, 266, 100, 7, -0.03434, "beam"])
+        }, {
+            'proposal': np.array([590, 311, 551, 23, -0.0208, "dynamicCrescendoHairpin"]),
+            'gt': np.array([597, 311, 586, 26, 0.0, "dynamicCrescendoHairpin"])
+        }, {
+            'proposal': np.array([734, 1087, 43, 11, 1.891, "flag8thDown"]),
+            'gt': np.array([733, 1088, 19, 44, 0.0, "flag8thDown"])
         },
-        {
-            'proposal': (113, 155, 42, 92, 2 / 180.0 * math.pi),
-            'class': 6,  # clefG
-            'gt': (128, 165, 43, 101, 0)
-        }
-    ]),
-    ('images/lg-252689430529936624-aug-beethoven--page-3.png', [
-        {
-            'proposal': (499, 565, 144, 14, 0),
-            'class': 123,  # tie
-            'gt': (507, 569, 147, 14, 0)
-        },
-        {
-            'proposal': (271, 523, 17, 45, -8 / 180 * math.pi),
-            'class': 64,  # accidentalSharp
-            'gt': (273, 528, 19, 49, 0)
-        }
     ])
 ]
 
@@ -71,30 +79,30 @@ def cls_to_glyph(class_name: str, width: int, height: int, angle: float, padding
         return grayscale(glyph)
 
 
-def get_glyphs(cls: int, bbox: Tuple[int, int, int, int, float], padding: int = 50) -> List[Image]:
+def bbox_translate(bbox: np.ndarray) -> np.ndarray:
+    if bbox[4] > np.pi / 4:
+        bbox[4] = bbox[4] - np.pi / 2
+        bbox[3], bbox[2] = bbox[2], bbox[3]
+    return bbox
+
+
+def get_glyphs(cls: str, bbox: np.ndarray, padding: int = 50) -> List[Image]:
     _, _, w, h, a = bbox
-    class_name = {
-        6: 'clefG',
-        29: 'noteheadHalfOnLine',
-        64: 'accidentalSharp',
-        123: 'tie'
-    }[cls]
-    glyph = cls_to_glyph(class_name, w, h, a, padding)
-    if class_name == 'tie':
+    glyph = cls_to_glyph(cls, w, h, a, padding)
+    if cls in ['tie', 'slur']:
         return [glyph, glyph.transpose(PImage.FLIP_TOP_BOTTOM)]
     return [glyph]
 
 
-def extract_bbox_from(glyph: Image, proposed_bbox: Tuple[int, int, int, int, float], cls: int) -> Tuple[
-    int, int, int, int, float]:
-    x1, y1, _, _, a = proposed_bbox
+def extract_bbox_from(glyph: Image, prop_bbox: np.ndarray, cls: str) -> np.ndarray:
+    x1, y1, _, _, a = prop_bbox
     angle = 0.0
-    if cls in [123]:  # Transfer angle if tie, slur etc.
+    if cls in ['tie', 'slur', 'beam']:  # Transfer angle if tie, slur etc.
         angle = a
-    rectified_glyph = glyph.rotate(-a * 180.0 / math.pi, PImage.BILINEAR, fillcolor=0)
+    rectified_glyph = glyph.rotate(-angle * 180.0 / math.pi, PImage.BILINEAR, fillcolor=0)
     bbox = rectified_glyph.getbbox()
     if bbox is None:
-        return 0, 0, 0, 0, 0.0
+        return prop_bbox
     bx1, by1, bx2, by2 = bbox
     cx1, cy1 = glyph.size
     cx1 /= 2
@@ -107,16 +115,16 @@ def extract_bbox_from(glyph: Image, proposed_bbox: Tuple[int, int, int, int, flo
     cydiff = cy2 - cy1
     x2 = x1 + cxdiff
     y2 = y1 + cydiff
-    return int(x2), int(y2), int(w), int(h), angle
+    return np.array([int(x2), int(y2), int(w), int(h), angle])
 
 
-def process(img: Image, proposed_bbox: Tuple[int, int, int, int, float], glyph: Image) -> Image:
-    if len(proposed_bbox) == 0:
+def process(img: Image, bbox: np.ndarray, glyph: Image) -> Image:
+    if len(bbox) == 0:
         return
 
     img_np = np.array(img.convert('L')) < 128
     w, h = glyph.size
-    x, y, _, _, _ = proposed_bbox
+    x, y, _, _, _ = bbox
     w2 = w / 2
     h2 = h / 2
     img_roi = img_np[int(y - h2):int(y + h2), int(x - w2):int(x + w2)]
@@ -129,7 +137,7 @@ def process(img: Image, proposed_bbox: Tuple[int, int, int, int, float], glyph: 
     return PImage.fromarray(binary_erosion(new_mask))
 
 
-def bbox_to_polygon(bbox: Tuple[int, int, int, int, float]) -> Polygon:
+def bbox_to_polygon(bbox: np.ndarray) -> Polygon:
     x, y, w, h, a = bbox
     w2 = w / 2.0
     h2 = h / 2.0
@@ -142,14 +150,14 @@ def bbox_to_polygon(bbox: Tuple[int, int, int, int, float]) -> Polygon:
     return rotate(p, a, use_radians=True)
 
 
-def calc_loss(bbox1: Tuple[int, int, int, int, float], bbox2: Tuple[int, int, int, int, float]) -> float:
+def calc_loss(bbox1: np.ndarray, bbox2: np.ndarray) -> float:
     a = bbox_to_polygon(bbox1)
     b = bbox_to_polygon(bbox2)
     return a.intersection(b).area / a.union(b).area
 
 
-def visualize(crop: Image, prop_bbox: Tuple[int, int, int, int, float], gt_bbox: Tuple[int, int, int, int, float],
-              gt_glyph: Image, new_bbox: Tuple[int, int, int, int, float], new_glyph: Image):
+def visualize(crop: Image, prop_bbox: np.ndarray, gt_bbox: np.ndarray,
+              gt_glyph: Image, new_bbox: np.ndarray, new_glyph: Image):
     img = crop.copy().convert('RGBA')
     draw = Draw(img, 'RGBA')
     draw.polygon(list(bbox_to_polygon(prop_bbox).exterior.coords)[:4], outline='#E00')
@@ -168,8 +176,7 @@ def visualize(crop: Image, prop_bbox: Tuple[int, int, int, int, float], gt_bbox:
     Draw(glyph_img).bitmap((x - (new_glyph.width // 2), y - (new_glyph.height // 2)), new_glyph, fill='#EC0A')
     img = PImage.alpha_composite(img, glyph_img)
     x, y, w, h, _ = gt_bbox
-    s = int(math.sqrt(w ** 2 + h ** 2))
-    img.crop((x - s, y - s, x + s, y + s)).show()
+    img.crop((x - w // 2 - 50, y - h // 2 - 50, x + w // 2 + 50, y + h // 2 + 50)).show()
 
 
 if __name__ == '__main__':
@@ -177,13 +184,18 @@ if __name__ == '__main__':
         img = PImage.open(image_fp)
         for sample in samples:
             scores = []
-            print(f"IoU [{sample['class']}]: ", end='')
-            for glyph in get_glyphs(sample['class'], sample['proposal'], 0):
-                new_glyph = process(img, sample['proposal'], glyph)
-                derived_bbox = extract_bbox_from(glyph, sample['proposal'], sample['class'])
-                new_bbox = extract_bbox_from(new_glyph, sample['proposal'], sample['class'])
-                iou = calc_loss(sample['gt'], new_bbox)
-                base_iou = calc_loss(sample['gt'], derived_bbox)
-                visualize(img, sample['proposal'], sample['gt'], glyph, new_bbox, new_glyph)
+            det_bbox = sample['proposal']
+            prop_bbox: np.ndarray = sample['proposal'][:5].astype(np.float)
+            prop_bbox = bbox_translate(prop_bbox)
+            cls: str = sample['proposal'][5]
+            gt_bbox: np.ndarray = sample['gt'][:5].astype(np.float)
+            print(f"IoU [{cls}]: ", end='')
+            for glyph in get_glyphs(cls, prop_bbox, 0):
+                new_glyph = process(img, prop_bbox, glyph)
+                derived_bbox = extract_bbox_from(glyph, prop_bbox, cls)
+                new_bbox = extract_bbox_from(new_glyph, prop_bbox, cls)
+                iou = calc_loss(gt_bbox, new_bbox)
+                base_iou = calc_loss(gt_bbox, derived_bbox)
+                visualize(img, prop_bbox, gt_bbox, glyph, new_bbox, new_glyph)
                 print(f", {iou:.3} (baseline: {base_iou:.3})", end='')
             print()
