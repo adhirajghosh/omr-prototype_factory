@@ -108,6 +108,9 @@ class GlyphGenerator:
         except ValueError as e:
             import matplotlib.pyplot as plt
             from matplotlib.patches import Rectangle
+
+            print("Image-Shape:", img2.shape, "Padding Left:", padding_left, "Padding Right:", padding_right, "Padding Top:", padding_top, "Padding Bottom:", padding_bottom)
+
             plt.imshow(img2, cmap="gray")
 
             plt.title(f"Width: {glyph_width}, Height: {glyph_height}")

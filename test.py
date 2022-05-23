@@ -1,6 +1,8 @@
 import math
 import warnings
+from datetime import datetime
 from io import BytesIO
+from pathlib import Path
 from typing import List
 
 import numpy as np
@@ -9,6 +11,7 @@ from PIL.Image import Image
 from PIL.ImageChops import invert
 from PIL.ImageDraw import Draw
 from PIL.ImageOps import grayscale
+from matplotlib import cm
 from shapely.affinity import rotate
 from shapely.geometry import Polygon
 from skimage.morphology import binary_erosion
@@ -17,6 +20,7 @@ from tqdm import tqdm
 from glyph_transform import GlyphGenerator
 from optical_flow import optical_flow_merging
 from render import Render
+import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -29,22 +33,22 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 SAMPLES = [
     ('images/sample.png', [
         {
-            'proposal': np.array([155, 242, 110, 41, 1.4105, "clefG"]),
+            'proposal': np.array([155, 242, 41, 112, 0.1105, "clefG"]),
             'gt': np.array([156, 240, 43, 116, 0.0, "clefG"])
         }, {
-            'proposal': np.array([513, 180, 19, 16, -0.2863, "noteheadBlackOnLine"]),
+            'proposal': np.array([513, 180, 19, 16, -0.1463, "noteheadBlackOnLine"]),
             'gt': np.array([513, 180, 19, 17, 0.0, "noteheadBlackOnLine"])
         }, {
-            'proposal': np.array([513, 163, 71, 14, -0.0841, "slur"]),
+            'proposal': np.array([513, 163, 71, 14, 0.0841, "slur"]),
             'gt': np.array([512, 164, 75, 18, 0.1401, "slur"])
         }, {
-            'proposal': np.array([619, 240, 30, 16, 1.8093, "rest8th"]),
+            'proposal': np.array([619, 240, 16, 30, 0.8093, "rest8th"]),
             'gt': np.array([621, 240, 17, 27, 0.0, "rest8th"])
         }, {
-            'proposal': np.array([946, 311, 43, 13, 2.1764, "dynamicF"]),
+            'proposal': np.array([946, 311, 32, 39, 0.1764, "dynamicF"]),
             'gt': np.array([948, 312, 34, 37, 0.0, "dynamicF"])
         }, {
-            'proposal': np.array([985, 193, 28, 3, 0.277, "ledgerLine"]),
+            'proposal': np.array([985, 193, 28, 3, 0.177, "ledgerLine"]),
             'gt': np.array([987, 194, 26, 3, 0.0, "ledgerLine"])
         }, {
             'proposal': np.array([1308, 266, 98, 5, 0.0303, "beam"]),
@@ -53,7 +57,7 @@ SAMPLES = [
             'proposal': np.array([590, 311, 551, 23, -0.0208, "dynamicCrescendoHairpin"]),
             'gt': np.array([597, 311, 586, 26, 0.0, "dynamicCrescendoHairpin"])
         }, {
-            'proposal': np.array([734, 1087, 43, 11, 1.891, "flag8thDown"]),
+            'proposal': np.array([734, 1087, 16, 43, 0.891, "flag8thDown"]),
             'gt': np.array([733, 1088, 19, 44, 0.0, "flag8thDown"])
         },
     ])
@@ -150,7 +154,24 @@ def get_roi(img, bbox):
     return img[y_min:y_max, x_min:x_max]
 
 
-def process2(img: Image, bbox: np.ndarray, glyph: Image, cls: str) -> Image:
+def generate_video(imgs):
+    import matplotlib.animation as animation
+
+    frames = []
+    fig = plt.figure()
+    for img in imgs:
+        frames.append([plt.imshow(img, cmap=cm.jet, animated=True)])
+
+    ani = animation.ArtistAnimation(fig, frames, interval=50, blit=True, repeat_delay=1000)
+
+    path = Path("process2_debugging")
+    if not path.exists():
+        path.mkdir()
+
+    ani.save(str(path / f'debug_{datetime.now().strftime("%Y%m%d-%H%M%S")}.mp4'))
+
+
+def process2(img: Image, bbox: np.ndarray, glyph: Image, cls: str, store_video: bool = False) -> Image:
     if len(bbox) == 0:
         return
 
@@ -158,23 +179,25 @@ def process2(img: Image, bbox: np.ndarray, glyph: Image, cls: str) -> Image:
     img_roi = get_roi(img_np, bbox)
 
     orig_angle = bbox[4]
-    orig_width = round(abs(bbox[2] * math.sin(orig_angle)) + abs(bbox[3] * math.cos(orig_angle)))
-    orig_height = round(abs(bbox[2] * math.cos(orig_angle)) + abs(bbox[3] * math.sin(orig_angle)))
+    orig_height = round(abs(bbox[2] * math.sin(orig_angle)) + abs(bbox[3] * math.cos(orig_angle)))
+    orig_width = round(abs(bbox[2] * math.cos(orig_angle)) + abs(bbox[3] * math.sin(orig_angle)))
 
     glyph = GlyphGenerator()
 
     best_glyph, best_overlap = None, -1
 
-    angles = np.arange(orig_angle - 0.1, orig_angle + 0.1, 0.02)
+    angles = np.arange(orig_angle - 0.4, orig_angle + 0.4, 0.1)
     x_shifts = range(img_roi.shape[0] // 2 - 10, img_roi.shape[0] // 2 + 10)
-    y_shifts = range(img_roi.shape[1] // 2 - 10, img_roi.shape[1] - orig_height // 2 + 10)
-    widths = range(orig_width, orig_width + 2)
-    heights = range(orig_height, orig_height + 2)
+    y_shifts = range(img_roi.shape[1] // 2 - 10, img_roi.shape[1] // 2 + 10)
+    widths = range(orig_width, orig_width + 5)
+    heights = range(orig_height, orig_height + 5)
 
-    n_tests = len(angles) * len(x_shifts) * len(y_shifts) * len(widths) * len(heights)
-    print("Number of tests:", n_tests, "Estimated duration", n_tests * 0.00023)
+    # n_tests = len(angles) * len(x_shifts) * len(y_shifts) * len(widths) * len(heights)
+    # print("Number of tests:", n_tests, "Estimated duration", n_tests * 0.00023)
 
     assert len(x_shifts) > 0 and len(y_shifts) > 0
+
+    imgs, i = [], 0
 
     count_angle_not_improved = 0
     for angle in tqdm(angles):
@@ -192,9 +215,12 @@ def process2(img: Image, bbox: np.ndarray, glyph: Image, cls: str) -> Image:
                         proposed_glyph = glyph.get_transformed_glyph(cls, width, height, angle, padding_left,
                                                                      padding_right, padding_top, padding_bottom)
 
-                        #import matplotlib.pyplot as plt
-                        #plt.imshow(proposed_glyph)
-                        #plt.show()
+                        if store_video and i % 100 == 0:
+                            img = img_roi.copy()
+                            img = img * 1
+                            img[proposed_glyph > 128] = 2
+                            imgs.append(img)
+                        i += 1
 
                         overlap = np.average(img_roi[proposed_glyph > 128])
                         if overlap > best_overlap:
@@ -209,8 +235,19 @@ def process2(img: Image, bbox: np.ndarray, glyph: Image, cls: str) -> Image:
         if count_angle_not_improved > 20:
             break
 
+    if store_video:
+        img = img_roi.copy()
+        img = img * 1
+        img[best_glyph > 128] = 2
+        imgs.append(img)
+        generate_video(imgs)
 
-    #best_glyph = np.repeat(best_glyph[:, :, np.newaxis], 4, axis=2)
+        plt.figure()
+        plt.imshow(img, cmap=cm.jet)
+        plt.grid()
+        plt.savefig(Path("process2_debugging") / f"{datetime.now().strftime('%Y%m%d-%H%M%S')}.png")
+        plt.close()
+
     return PImage.fromarray(best_glyph)
 
 
@@ -292,6 +329,6 @@ if __name__ == '__main__':
                 new_bbox = extract_bbox_from(new_glyph, prop_bbox, cls)
                 iou = calc_loss(gt_bbox, new_bbox)
                 base_iou = calc_loss(gt_bbox, derived_bbox)
-                visualize(img, prop_bbox, gt_bbox, glyph, new_bbox, new_glyph)
+                #visualize(img, prop_bbox, gt_bbox, glyph, new_bbox, new_glyph)
                 print(f", {iou:.3} (baseline: {base_iou:.3})", end='')
             print()
