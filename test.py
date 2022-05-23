@@ -143,7 +143,7 @@ def extract_bbox_from(glyph: Image, prop_bbox: np.ndarray, cls: str) -> np.ndarr
 #    return np.zeros((padding_left + padding_right, padding_top + padding_bottom))
 
 def get_roi(img, bbox):
-    area_size = (np.sqrt(bbox[2] ** 2 + bbox[3] ** 2) + 50) / 2
+    area_size = (np.sqrt(bbox[2] ** 2 + bbox[3] ** 2) + 50) / 2 + 20
     x_min, x_max = int(max(0, np.floor(bbox[0] - area_size))), int(min(img.shape[1], np.ceil(bbox[0] + area_size)))
     y_min, y_max = int(max(0, np.floor(bbox[1] - area_size))), int(min(img.shape[0], np.ceil(bbox[1] + area_size)))
 
@@ -165,7 +165,7 @@ def process2(img: Image, bbox: np.ndarray, glyph: Image, cls: str) -> Image:
 
     best_glyph, best_overlap = None, -1
 
-    angles = np.arange(orig_angle - 0.1, orig_angle + 0.1, 0.01)
+    angles = np.arange(orig_angle - 0.1, orig_angle + 0.1, 0.02)
     x_shifts = range(img_roi.shape[0] // 2 - 10, img_roi.shape[0] // 2 + 10)
     y_shifts = range(img_roi.shape[1] // 2 - 10, img_roi.shape[1] - orig_height // 2 + 10)
     widths = range(orig_width, orig_width + 2)
@@ -176,8 +176,11 @@ def process2(img: Image, bbox: np.ndarray, glyph: Image, cls: str) -> Image:
 
     assert len(x_shifts) > 0 and len(y_shifts) > 0
 
+    count_angle_not_improved = 0
     for angle in tqdm(angles):
+        count_xshift_not_improved = 0
         for x_shift in x_shifts:
+            count_yshift_not_improved = 0
             for y_shift in y_shifts:
                 for width in widths:
                     for height in heights:
@@ -186,7 +189,7 @@ def process2(img: Image, bbox: np.ndarray, glyph: Image, cls: str) -> Image:
                         padding_top = y_shift
                         padding_bottom = img_roi.shape[1] - padding_top
 
-                        proposed_glyph = glyph.get_transformed_glyph(class_id, width, height, angle, padding_left,
+                        proposed_glyph = glyph.get_transformed_glyph(cls, width, height, angle, padding_left,
                                                                      padding_right, padding_top, padding_bottom)
 
                         #import matplotlib.pyplot as plt
@@ -197,6 +200,15 @@ def process2(img: Image, bbox: np.ndarray, glyph: Image, cls: str) -> Image:
                         if overlap > best_overlap:
                             best_overlap = overlap
                             best_glyph = proposed_glyph
+                            count_angle_not_improved, count_xshift_not_improved, count_yshift_not_improved = 0, 0, 0
+
+                if count_yshift_not_improved > 5:
+                    break
+            if count_xshift_not_improved > 5:
+                break
+        if count_angle_not_improved > 20:
+            break
+
 
     #best_glyph = np.repeat(best_glyph[:, :, np.newaxis], 4, axis=2)
     return PImage.fromarray(best_glyph)
@@ -275,7 +287,7 @@ if __name__ == '__main__':
             gt_bbox: np.ndarray = sample['gt'][:5].astype(np.float)
             print(f"IoU [{cls}]: ", end='')
             for glyph in get_glyphs(cls, prop_bbox, 0):
-                new_glyph = process(img, prop_bbox, glyph, cls)
+                new_glyph = process2(img, prop_bbox, glyph, cls)
                 derived_bbox = extract_bbox_from(glyph, prop_bbox, cls)
                 new_bbox = extract_bbox_from(new_glyph, prop_bbox, cls)
                 iou = calc_loss(gt_bbox, new_bbox)
