@@ -5,3 +5,4 @@ shapely
 opencv-python
 scikit-image
 tqdm
+matplotlib
